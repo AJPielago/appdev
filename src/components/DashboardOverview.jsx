@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { 
   Database, Users, ShieldAlert, Cpu, CheckCircle2, 
-  Activity, ShieldCheck, Clock
+  Activity, ShieldCheck, Clock, Globe, HardDrive
 } from 'lucide-react';
 import { 
   getAssets, getContacts, getDocuments, getBlockchain, 
-  verifyBlockchainIntegrity, getLogs, getActiveRole
+  verifyBlockchainIntegrity, getLogs, getActiveRole,
+  getIPFSStatus, getPolygonStatus
 } from '../utils/state';
 
 export default function DashboardOverview({ onNavigate }) {
@@ -16,19 +17,23 @@ export default function DashboardOverview({ onNavigate }) {
   const [blockchain, setBlockchain] = useState([]);
   const [logs, setLogs] = useState([]);
   const [integrity, setIntegrity] = useState({ valid: true });
+  const [ipfsStatus, setIpfsStatus] = useState({ enabled: false });
+  const [polygonStatus, setPolygonStatus] = useState({ enabled: false });
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
     async function loadData() {
       try {
-        const [assetsData, contactsData, documentsData, blockchainData, logsData, integrityData] = await Promise.all([
+        const [assetsData, contactsData, documentsData, blockchainData, logsData, integrityData, ipfsData, polygonData] = await Promise.all([
           getAssets(),
           getContacts(),
           getDocuments(),
           getBlockchain(),
           getLogs(),
-          verifyBlockchainIntegrity()
+          verifyBlockchainIntegrity(),
+          getIPFSStatus(),
+          getPolygonStatus()
         ]);
         if (active) {
           setAssets(assetsData);
@@ -37,6 +42,8 @@ export default function DashboardOverview({ onNavigate }) {
           setBlockchain(blockchainData);
           setLogs(logsData.slice(0, 4));
           setIntegrity(integrityData);
+          setIpfsStatus(ipfsData);
+          setPolygonStatus(polygonData);
         }
       } catch (err) {
         console.error(err);
@@ -143,6 +150,50 @@ export default function DashboardOverview({ onNavigate }) {
             <span>Cryptographic hash valid</span>
           </div>
         </div>
+      </div>
+
+      {/* IPFS & Polygon Status Row */}
+      <div className="metrics-grid" style={{ marginTop: '0' }}>
+        <div className="glass-card metric-card">
+          <div className="metric-header">
+            <span>IPFS Storage</span>
+            <Globe size={18} style={{ color: ipfsStatus.enabled ? 'var(--accent-emerald)' : 'var(--text-muted)' }} />
+          </div>
+          <div className="metric-value" style={{ color: ipfsStatus.enabled ? 'var(--accent-emerald)' : 'var(--text-muted)', fontSize: '1.2rem' }}>
+            {ipfsStatus.enabled ? 'CONNECTED' : 'OFFLINE'}
+          </div>
+          <div className="metric-footer text-muted">
+            <span>{ipfsStatus.enabled ? `Pinata → ${ipfsStatus.gateway}` : 'Configure Pinata JWT'}</span>
+          </div>
+        </div>
+
+        <div className="glass-card metric-card">
+          <div className="metric-header">
+            <span>Polygon Amoy</span>
+            <HardDrive size={18} style={{ color: polygonStatus.enabled ? '#8a2be2' : 'var(--text-muted)' }} />
+          </div>
+          <div className="metric-value" style={{ color: polygonStatus.enabled ? '#8a2be2' : 'var(--text-muted)', fontSize: '1.2rem' }}>
+            {polygonStatus.enabled ? 'ON-CHAIN' : 'OFFLINE'}
+          </div>
+          <div className="metric-footer text-muted">
+            <span>{polygonStatus.enabled ? `${polygonStatus.auditEventsOnChain ?? 0} audit events anchored` : 'Deploy contract first'}</span>
+          </div>
+        </div>
+
+        {polygonStatus.enabled && polygonStatus.balance && (
+          <div className="glass-card metric-card">
+            <div className="metric-header">
+              <span>Wallet Balance</span>
+              <HardDrive size={18} style={{ color: '#8a2be2' }} />
+            </div>
+            <div className="metric-value" style={{ color: '#8a2be2', fontSize: '1.2rem' }}>
+              {parseFloat(polygonStatus.balance).toFixed(4)}
+            </div>
+            <div className="metric-footer text-muted">
+              <span>POL (Amoy Testnet)</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Main Grid */}

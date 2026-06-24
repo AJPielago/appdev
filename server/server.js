@@ -1,4 +1,4 @@
-/* global process, Buffer */
+/* global process, Buffer, File, Blob */
 import express from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
@@ -9,9 +9,16 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import { ethers } from 'ethers';
+import { PinataSDK } from 'pinata';
 import { User, Asset, Document, Contact, Block, Log } from './models/Schemas.js';
 
 dotenv.config();
+
+// Sanitize PINATA_GATEWAY if it is the placeholder value
+if (process.env.PINATA_GATEWAY === 'your-gateway.mypinata.cloud') {
+  process.env.PINATA_GATEWAY = 'gateway.pinata.cloud';
+}
 
 const app = express();
 app.use(cors());
@@ -25,6 +32,157 @@ if (!fs.existsSync(UPLOADS_DIR)) {
 
 // In-memory P2P peer list
 let peers = [];
+
+// --- IPFS (Pinata) Initialization ---
+let pinata = null;
+let ipfsEnabled = false;
+try {
+  if (process.env.PINATA_JWT && process.env.PINATA_JWT !== 'your_pinata_jwt_token_here') {
+    pinata = new PinataSDK({
+      pinataJwt: process.env.PINATA_JWT,
+      pinataGateway: process.env.PINATA_GATEWAY || 'gateway.pinata.cloud',
+    });
+    ipfsEnabled = true;
+    console.log('[IPFS] Pinata SDK initialized successfully.');
+  } else {
+    console.log('[IPFS] Pinata JWT not configured. Using local disk storage fallback.');
+  }
+} catch (err) {
+  console.error('[IPFS] Failed to initialize Pinata SDK:', err.message);
+}
+
+// --- Polygon Amoy Initialization ---
+let polygonProvider = null;
+let polygonWallet = null;
+let polygonContract = null;
+let polygonEnabled = false;
+
+// Transaction queue to serialize EVM transactions and prevent nonce collisions
+let txQueue = Promise.resolve();
+
+const DIGITALWILL_ABI = [
+  'function storeIPFSHash(string memory docId, string memory cid) public',
+  'function getIPFSHash(string memory docId) public view returns (string memory)',
+  'function logAuditEvent(string memory action, string memory details, string memory user) public',
+  'function getAuditEventCount() public view returns (uint256)',
+  'function getAuditEvent(uint256 index) public view returns (string memory action, string memory details, string memory user, uint256 timestamp)'
+];
+
+try {
+  if (process.env.POLYGON_PRIVATE_KEY && process.env.POLYGON_CONTRACT_ADDRESS) {
+    polygonProvider = new ethers.JsonRpcProvider(process.env.POLYGON_RPC_URL || 'https://rpc-amoy.polygon.technology/');
+    polygonWallet = new ethers.Wallet(process.env.POLYGON_PRIVATE_KEY, polygonProvider);
+    polygonContract = new ethers.Contract(process.env.POLYGON_CONTRACT_ADDRESS, DIGITALWILL_ABI, polygonWallet);
+    polygonEnabled = true;
+    console.log('[POLYGON] Connected to Amoy testnet. Contract:', process.env.POLYGON_CONTRACT_ADDRESS);
+  } else {
+    console.log('[POLYGON] Contract address or private key not configured. On-chain anchoring disabled.');
+  }
+} catch (err) {
+  console.error('[POLYGON] Failed to initialize Polygon connection:', err.message);
+}
+
+// --- IPFS Helper Functions ---
+async function pinToIPFS(data, fileName) {
+  if (!ipfsEnabled || !pinata) return null;
+  try {
+    const blob = new Blob([data]);
+    const file = new File([blob], fileName, { type: 'application/octet-stream' });
+    const upload = await pinata.upload.public.file(file);
+    console.log(`[IPFS] Pinned file "${fileName}" → CID: ${upload.cid}`);
+    return upload.cid;
+  } catch (err) {
+    console.error('[IPFS] Pin failed:', err.message);
+    return null;
+  }
+}
+
+async function unpinFromIPFS(cid) {
+  if (!ipfsEnabled || !pinata || !cid) return;
+  try {
+    await pinata.unpin([cid]);
+    console.log(`[IPFS] Unpinned CID: ${cid}`);
+  } catch (err) {
+    console.error('[IPFS] Unpin failed:', err.message);
+  }
+}
+
+async function fetchFromIPFS(cid) {
+  if (!cid) return null;
+  
+  // 1. Try using the initialized Pinata SDK if available
+  if (pinata) {
+    try {
+      const response = await pinata.gateways.public.get(cid);
+      let text = '';
+      if (response.data instanceof Blob) {
+        text = await response.data.text();
+      } else if (typeof response.data === 'string') {
+        text = response.data;
+      } else if (response.data) {
+        text = typeof response.data === 'object' ? JSON.stringify(response.data) : response.data.toString();
+      }
+      if (text) {
+        console.log(`[IPFS] Successfully fetched CID: ${cid} via Pinata SDK.`);
+        return text;
+      }
+    } catch (sdkErr) {
+      console.warn(`[IPFS] SDK fetch failed for CID ${cid}:`, sdkErr.message, '. Falling back to direct HTTP fetch...');
+    }
+  }
+
+  // 2. Fallback to direct HTTP fetch via gateways
+  try {
+    const gateway = process.env.PINATA_GATEWAY || 'gateway.pinata.cloud';
+    const url = `https://${gateway}/ipfs/${cid}`;
+    console.log(`[IPFS] Direct fetching from gateway URL: ${url}`);
+    
+    const response = await fetch(url);
+    if (!response.ok) {
+      const fallbackUrl = `https://gateway.pinata.cloud/ipfs/${cid}`;
+      console.log(`[IPFS] Primary gateway returned ${response.status}. Trying fallback gateway: ${fallbackUrl}`);
+      const fallbackResponse = await fetch(fallbackUrl);
+      if (!fallbackResponse.ok) {
+        throw new Error(`Both gateways failed. Fallback returned ${fallbackResponse.status}`);
+      }
+      const text = await fallbackResponse.text();
+      return text;
+    }
+    
+    const text = await response.text();
+    return text;
+  } catch (err) {
+    console.error('[IPFS] Direct HTTP fetch failed for CID', cid, ':', err.message);
+    return null;
+  }
+}
+
+// --- Polygon On-Chain Anchoring Helper ---
+async function anchorOnChain(action, details, user) {
+  if (!polygonEnabled || !polygonContract) return null;
+  try {
+    const tx = await polygonContract.logAuditEvent(action, details, user);
+    const receipt = await tx.wait();
+    console.log(`[POLYGON] Audit event anchored on-chain. Tx: ${receipt.hash}`);
+    return receipt.hash;
+  } catch (err) {
+    console.error('[POLYGON] On-chain anchor failed:', err.message);
+    return null;
+  }
+}
+
+async function storeIPFSHashOnChain(docId, cid) {
+  if (!polygonEnabled || !polygonContract) return null;
+  try {
+    const tx = await polygonContract.storeIPFSHash(docId, cid);
+    const receipt = await tx.wait();
+    console.log(`[POLYGON] IPFS CID stored on-chain for doc ${docId}. Tx: ${receipt.hash}`);
+    return receipt.hash;
+  } catch (err) {
+    console.error('[POLYGON] storeIPFSHash failed:', err.message);
+    return null;
+  }
+}
 
 // --- Cryptographic Blockchain Utility Helpers ---
 function hashString(str) {
@@ -110,6 +268,29 @@ async function mineTransactionsToBlock(txs) {
   const newBlockData = mineBlock(nextIndex, txs, prevHash, 2);
   const block = new Block(newBlockData);
   await block.save();
+  
+  // Anchor audit events on Polygon Amoy (non-blocking, queued sequentially to prevent nonce collisions)
+  if (polygonEnabled) {
+    txQueue = txQueue.then(async () => {
+      try {
+        const primaryTx = txs[0] || {};
+        const txHash = await anchorOnChain(
+          primaryTx.action || 'BLOCK_MINED',
+          primaryTx.details || `Block #${nextIndex} mined`,
+          primaryTx.user || 'SYSTEM'
+        );
+        if (txHash) {
+          block.polygonTxHash = txHash;
+          await block.save();
+          console.log(`[POLYGON] Block #${nextIndex} anchored with tx: ${txHash}`);
+        }
+      } catch (err) {
+        console.error('[POLYGON] Async anchor failed:', err.message);
+      }
+    }).catch(err => {
+      console.error('[POLYGON] Queue execution failed:', err.message);
+    });
+  }
   
   // Propagate block to P2P nodes asynchronously
   peers.forEach(peer => {
@@ -544,7 +725,7 @@ app.delete('/api/assets/:id', async (req, res) => {
   }
 });
 
-// Secure Documents Endpoints with Disk Upload Storage
+// Secure Documents Endpoints with IPFS + Local Disk Fallback
 app.get('/api/documents', async (req, res) => {
   const role = req.headers['x-active-role'] || 'owner';
   const userId = req.headers['x-user-id'];
@@ -566,10 +747,35 @@ app.get('/api/documents', async (req, res) => {
       filtered = documents.filter(d => d.ownerId === userId);
     }
 
-    // Populate Base64 data from file system disk store on retrieval
-    const populated = filtered.map(d => {
+    // Populate Base64 data from IPFS or local disk
+    const populated = await Promise.all(filtered.map(async d => {
       const docObj = d.toObject();
-      if (fs.existsSync(docObj.base64Data)) {
+      
+      if (docObj.storageType === 'ipfs' && docObj.ipfsCid) {
+        // Add gateway URL for direct public preview
+        const gateway = process.env.PINATA_GATEWAY || 'gateway.pinata.cloud';
+        docObj.gatewayUrl = `https://${gateway}/ipfs/${docObj.ipfsCid}?filename=${encodeURIComponent(docObj.name)}.enc&download=true`;
+
+        // If already cached in the database (i.e. base64Data doesn't start with ipfs://), use it!
+        if (docObj.base64Data && !docObj.base64Data.startsWith('ipfs://')) {
+          return docObj;
+        }
+
+        // Fetch from IPFS gateway
+        try {
+          const ipfsData = await fetchFromIPFS(docObj.ipfsCid);
+          if (ipfsData) {
+            docObj.base64Data = ipfsData;
+            // Cache it back to the database in the background so we don't have to fetch it next time
+            d.base64Data = ipfsData;
+            await d.save().catch(err => console.error('[IPFS] Background cache save failed:', err.message));
+            console.log(`[IPFS] Successfully cached file data in database for document: ${docObj.name}`);
+          }
+        } catch (err) {
+          console.error('[IPFS] Error fetching document from IPFS:', err);
+        }
+      } else if (fs.existsSync(docObj.base64Data)) {
+        // Fallback: read from local disk
         try {
           docObj.base64Data = fs.readFileSync(docObj.base64Data, 'utf8');
         } catch (err) {
@@ -577,7 +783,7 @@ app.get('/api/documents', async (req, res) => {
         }
       }
       return docObj;
-    });
+    }));
 
     res.json(populated);
   } catch (err) {
@@ -589,10 +795,28 @@ app.post('/api/documents', async (req, res) => {
   const { name, fileType, fileSize, base64Data, userId, userEmail, encryptedData, encryptionKey } = req.body;
   try {
     const fileId = 'doc_' + Date.now();
-    const filePath = path.join(UPLOADS_DIR, `${fileId}.dat`);
+    let storageType = 'local';
+    let ipfsCid = '';
+    let storedPath = '';
     
-    // Save base64 payload to disk storage
-    fs.writeFileSync(filePath, base64Data || '');
+    // Attempt IPFS upload first
+    const cid = await pinToIPFS(base64Data || '', `${fileId}_${name}.enc`);
+    
+    if (cid) {
+      storageType = 'ipfs';
+      ipfsCid = cid;
+      storedPath = `ipfs://${cid}`;
+      
+      // Store IPFS CID on Polygon Amoy (queued sequentially to prevent nonce collisions)
+      txQueue = txQueue.then(() => storeIPFSHashOnChain(fileId, cid)).catch(err => 
+        console.error('[POLYGON] Background storeIPFSHash failed:', err.message)
+      );
+    } else {
+      // Fallback to local disk storage
+      const filePath = path.join(UPLOADS_DIR, `${fileId}.dat`);
+      fs.writeFileSync(filePath, base64Data || '');
+      storedPath = filePath;
+    }
 
     const newDoc = new Document({
       id: fileId,
@@ -600,16 +824,18 @@ app.post('/api/documents', async (req, res) => {
       name,
       fileType: fileType || 'pdf',
       fileSize: fileSize || '100 KB',
-      base64Data: filePath, // save file path reference in DB
-      encryptedData: encryptedData || '', // Encrypted file hashes client side
-      encryptionKey: encryptionKey || '', // Wrapped file keys client side
+      base64Data: storedPath,
+      encryptedData: encryptedData || '',
+      encryptionKey: encryptionKey || '',
+      ipfsCid: ipfsCid,
+      storageType: storageType,
       createdAt: new Date().toISOString()
     });
 
     await newDoc.save();
-    await logActivity(userId, userEmail, 'DOCUMENT_UPLOADED', `Uploaded legal document "${newDoc.name}" with client-side Zero-Knowledge AES-256 encryption.`, 'vault');
+    await logActivity(userId, userEmail, 'DOCUMENT_UPLOADED', `Uploaded legal document "${newDoc.name}" via ${storageType.toUpperCase()}${ipfsCid ? ` (CID: ${ipfsCid})` : ''} with client-side Zero-Knowledge AES-256 encryption.`, 'vault');
     await mineTransactionsToBlock([
-      { action: 'SECURE_DOCUMENT_UPLOAD', user: userEmail, details: `Uploaded & encrypted "${newDoc.name}"`, timestamp: new Date().toISOString() }
+      { action: 'SECURE_DOCUMENT_UPLOAD', user: userEmail, details: `Uploaded & encrypted "${newDoc.name}" to ${storageType.toUpperCase()}${ipfsCid ? ` [CID: ${ipfsCid}]` : ''}`, timestamp: new Date().toISOString() }
     ]);
 
     notifyServerUpdate('document', 'create');
@@ -627,8 +853,13 @@ app.delete('/api/documents/:id', async (req, res) => {
     const doc = await Document.findOne({ id: docId, ownerId: userId });
     if (!doc) return res.status(404).json({ success: false, error: 'Document not found or unauthorized' });
 
-    // Remove from file system
-    if (fs.existsSync(doc.base64Data)) {
+    // Unpin from IPFS if stored there
+    if (doc.storageType === 'ipfs' && doc.ipfsCid) {
+      await unpinFromIPFS(doc.ipfsCid);
+    }
+
+    // Remove from local file system if stored locally
+    if (doc.storageType === 'local' && fs.existsSync(doc.base64Data)) {
       try {
         fs.unlinkSync(doc.base64Data);
       } catch (err) {
@@ -818,6 +1049,55 @@ app.post('/api/claims/reset', async (req, res) => {
     res.json({ success: true, contact });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// --- IPFS & Polygon Status Endpoints ---
+app.get('/api/ipfs/status', (req, res) => {
+  res.json({
+    enabled: ipfsEnabled,
+    gateway: process.env.PINATA_GATEWAY || 'gateway.pinata.cloud',
+    provider: 'Pinata'
+  });
+});
+
+app.get('/api/polygon/status', async (req, res) => {
+  try {
+    let balance = null;
+    let walletAddress = null;
+    let auditCount = null;
+    
+    if (polygonEnabled && polygonWallet) {
+      walletAddress = polygonWallet.address;
+      const rawBalance = await polygonProvider.getBalance(walletAddress);
+      balance = ethers.formatEther(rawBalance);
+      
+      if (polygonContract) {
+        try {
+          auditCount = Number(await polygonContract.getAuditEventCount());
+        } catch (e) {
+          console.error('[POLYGON] getAuditEventCount failed:', e.message);
+        }
+      }
+    }
+    
+    res.json({
+      enabled: polygonEnabled,
+      network: 'Polygon Amoy Testnet',
+      chainId: 80002,
+      rpcUrl: process.env.POLYGON_RPC_URL || 'https://rpc-amoy.polygon.technology/',
+      contractAddress: process.env.POLYGON_CONTRACT_ADDRESS || '',
+      walletAddress: walletAddress,
+      balance: balance,
+      auditEventsOnChain: auditCount,
+      explorerUrl: 'https://amoy.polygonscan.com'
+    });
+  } catch (err) {
+    res.json({
+      enabled: polygonEnabled,
+      network: 'Polygon Amoy Testnet',
+      error: err.message
+    });
   }
 });
 
