@@ -22,3 +22,17 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Environment
+.env
+
+# Test & Temp files
+test_output_pdf.pdf
+test_upload.txt
+
+# Hardhat
+cache/
+artifacts/
+
+# Server uploads
+server/uploads/
