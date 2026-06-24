@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { 
   UploadCloud, File, Key, Lock, Unlock, 
-  Trash2, Plus, Eye, EyeOff, FileText, CheckCircle2 
+  Trash2, Plus, Eye, EyeOff, FileText, CheckCircle2, Globe, ExternalLink 
 } from 'lucide-react';
 import { getDocuments, uploadDocument, deleteDocument, logActivity, getEncryptionKey } from '../utils/state';
 import { encryptData, decryptData } from '../utils/crypto';
@@ -116,12 +116,18 @@ export default function SecureVault({ triggerMining }) {
         '[ENCRYPT] Execution Round 5 (MixColumns)...',
         '[ENCRYPT] Execution Round 10 (AddRoundKey)...',
         '[SUCCESS] Cipher block chaining successfully finalized.',
-        '[SUCCESS] Encrypted hash written. Immutable signature appended.'
+        '[IPFS] Pinning encrypted payload to IPFS network via Pinata...',
+        '[IPFS] Generating Content Identifier (CID)...',
+        '[POLYGON] Anchoring IPFS CID on Polygon Amoy testnet...',
+        '[SUCCESS] Encrypted hash written. IPFS + On-chain signature appended.'
       ];
 
       let currentStepIndex = 0;
       const interval = setInterval(() => {
-        setEncryptionLog(prev => [...prev, steps[currentStepIndex]]);
+        const nextStep = steps[currentStepIndex];
+        if (nextStep) {
+          setEncryptionLog(prev => [...prev, nextStep]);
+        }
         currentStepIndex++;
         if (currentStepIndex >= steps.length) {
           clearInterval(interval);
@@ -145,19 +151,55 @@ export default function SecureVault({ triggerMining }) {
   };
 
   // Download Decrypted File
-  const handleDownload = (doc) => {
+  const handleDownload = async (doc) => {
     try {
+      if (!doc.base64Data) {
+        alert('Could not download document. Decryption failed or key is missing.');
+        return;
+      }
+
       const link = document.createElement('a');
-      link.href = doc.base64Data;
+      let url = doc.base64Data;
+      let isBlob = false;
+
+      if (doc.base64Data.startsWith('data:')) {
+        const res = await fetch(doc.base64Data);
+        const blob = await res.blob();
+        url = URL.createObjectURL(blob);
+        isBlob = true;
+      }
+
+      link.href = url;
       link.download = doc.name;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+
+      if (isBlob) {
+        setTimeout(() => URL.revokeObjectURL(url), 100);
+      }
       
       // Log decryption activity
       logActivity('SYSTEM', 'alex@will.com', 'DOCUMENT_DECRYPTED', `Decrypted and retrieved file "${doc.name}"`, 'vault');
-    } catch {
+    } catch (err) {
+      console.error('Download failed:', err);
       alert('Could not download document. Ensure data is correct.');
+    }
+  };
+
+  // Preview Decrypted File in Browser Tab
+  const handlePreview = async (e, doc) => {
+    if (doc.base64Data && doc.base64Data.startsWith('data:')) {
+      e.preventDefault();
+      try {
+        const res = await fetch(doc.base64Data);
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        window.open(url, '_blank');
+      } catch (err) {
+        console.error('Preview failed:', err);
+        window.open(doc.gatewayUrl || `https://gateway.pinata.cloud/ipfs/${doc.ipfsCid}?filename=${encodeURIComponent(doc.name)}.enc&download=true`, '_blank');
+      }
     }
   };
 
@@ -281,7 +323,7 @@ export default function SecureVault({ triggerMining }) {
                   </div>
                   <div className="encryption-visualizer">
                     {encryptionLog.map((log, idx) => (
-                      <div key={idx} style={{ color: log.startsWith('[SUCCESS]') ? 'var(--accent-emerald)' : '#39ff14' }}>
+                      <div key={idx} style={{ color: log && log.startsWith('[SUCCESS]') ? 'var(--accent-emerald)' : '#39ff14' }}>
                         {log}
                       </div>
                     ))}
@@ -377,13 +419,33 @@ export default function SecureVault({ triggerMining }) {
                     <div key={doc.id} className="document-item">
                       <div className="document-info">
                         <div className="document-icon-wrapper">
-                          <File className="text-cyan" size={18} />
+                          {doc.storageType === 'ipfs' ? (
+                            <Globe className="text-emerald" size={18} />
+                          ) : (
+                            <File className="text-cyan" size={18} />
+                          )}
                         </div>
                         <div>
-                          <div className="document-name">{doc.name}</div>
+                          <div className="document-name">
+                            {doc.name}
+                            {doc.storageType === 'ipfs' && (
+                              <span style={{ marginLeft: '8px', fontSize: '0.65rem', padding: '2px 6px', borderRadius: '4px', backgroundColor: 'rgba(5, 217, 195, 0.1)', border: '1px solid rgba(5, 217, 195, 0.3)', color: 'var(--accent-emerald)', fontWeight: '700', textTransform: 'uppercase' }}>IPFS</span>
+                            )}
+                          </div>
                           <div className="document-meta">
                             {doc.fileSize} • Uploaded {new Date(doc.createdAt).toLocaleDateString()}
+                            {!doc.base64Data && (
+                              <span className="text-rose" style={{ marginLeft: '8px', fontSize: '0.75rem', fontWeight: '600' }}>• Decryption Failed / Key Missing</span>
+                            )}
                           </div>
+                          {doc.ipfsCid && (
+                            <div style={{ fontSize: '0.7rem', fontFamily: 'monospace', color: 'var(--text-muted)', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <span style={{ color: 'var(--accent-emerald)' }}>CID:</span> {doc.ipfsCid.substring(0, 20)}...
+                              <a href={doc.gatewayUrl || `https://gateway.pinata.cloud/ipfs/${doc.ipfsCid}?filename=${encodeURIComponent(doc.name)}.enc&download=true`} onClick={(e) => handlePreview(e, doc)} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--accent-cyan)', display: 'inline-flex', alignItems: 'center' }} title="View on IPFS Gateway">
+                                <ExternalLink size={10} />
+                              </a>
+                            </div>
+                          )}
                         </div>
                       </div>
                       

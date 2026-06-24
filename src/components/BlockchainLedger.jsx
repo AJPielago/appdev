@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Cpu, ShieldCheck, ShieldAlert, Clock, Settings, RotateCcw, AlertTriangle, X } from 'lucide-react';
+import { Cpu, ShieldCheck, ShieldAlert, Clock, Settings, RotateCcw, AlertTriangle, X, ExternalLink } from 'lucide-react';
 import { getBlockchain, verifyBlockchainIntegrity, resetBlockchain, tamperBlock } from '../utils/state';
 import { calculateBlockHash } from '../utils/blockchain';
 
@@ -223,6 +223,34 @@ export default function BlockchainLedger() {
                       </span>
                     )}
                   </div>
+
+                  {/* Polygon On-Chain Anchor */}
+                  {(() => {
+                    const txHash = block.polygonTxHash || ('0x' + storedHash);
+                    const isSimulated = !block.polygonTxHash;
+                    return (
+                      <div style={{ marginTop: '8px', padding: '8px 12px', borderRadius: '6px', backgroundColor: isSimulated ? 'rgba(138, 43, 226, 0.03)' : 'rgba(138, 43, 226, 0.06)', border: isSimulated ? '1px solid rgba(138, 43, 226, 0.1)' : '1px solid rgba(138, 43, 226, 0.2)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '6px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ fontSize: '0.7rem', fontWeight: '700', textTransform: 'uppercase', color: '#8a2be2', letterSpacing: '0.5px' }}>
+                              ⬡ Polygon Amoy {isSimulated && '(Simulated)'}
+                            </span>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                              Tx: {txHash.substring(0, 16)}...{txHash.substring(txHash.length - 8)}
+                            </span>
+                          </div>
+                          <a 
+                            href={`https://amoy.polygonscan.com/tx/${txHash}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ fontSize: '0.7rem', color: '#8a2be2', display: 'flex', alignItems: 'center', gap: '4px', textDecoration: 'none', fontWeight: '600' }}
+                          >
+                            View on Polygonscan <ExternalLink size={10} />
+                          </a>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             </div>

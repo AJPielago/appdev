@@ -268,6 +268,25 @@ export async function verifyBlockchainIntegrity() {
   return validateChain(chain);
 }
 
+// IPFS & Polygon Status
+export async function getIPFSStatus() {
+  try {
+    const res = await fetch(`${getApiBase()}/api/ipfs/status`);
+    return await res.json();
+  } catch {
+    return { enabled: false, error: 'Failed to reach server' };
+  }
+}
+
+export async function getPolygonStatus() {
+  try {
+    const res = await fetch(`${getApiBase()}/api/polygon/status`);
+    return await res.json();
+  } catch {
+    return { enabled: false, error: 'Failed to reach server' };
+  }
+}
+
 // Assets (Zero-Knowledge Decrypted Client-Side)
 export async function getAssets() {
   const res = await fetch(`${getApiBase()}/api/assets`, {
@@ -377,17 +396,25 @@ export async function getDocuments() {
   const decryptKey = await resolveDecryptionKey();
   
   return await Promise.all(docs.map(async d => {
-    try {
-      if (decryptKey && d.base64Data && !d.base64Data.startsWith('data:')) {
+    // If the data is already a data URL (e.g. unencrypted seed files or already decrypted), return as-is
+    if (d.base64Data && d.base64Data.startsWith('data:')) {
+      return d;
+    }
+    
+    // If it's encrypted (doesn't start with data:), try to decrypt it
+    if (decryptKey && d.base64Data) {
+      try {
         const decryptedBase64 = await decryptData(d.base64Data, decryptKey);
         return {
           ...d,
           base64Data: decryptedBase64
         };
+      } catch (err) {
+        console.warn('Could not decrypt document:', d.name, err.message);
       }
-    } catch (err) {
-      console.warn('Could not decrypt document:', d.name, err.message);
     }
+    
+    // Otherwise return empty base64Data
     return {
       ...d,
       base64Data: ''

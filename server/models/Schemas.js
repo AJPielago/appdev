@@ -28,10 +28,13 @@ const DocumentSchema = new mongoose.Schema({
   fileType: { type: String, required: true },
   fileSize: { type: String, required: true },
   base64Data: { type: String, required: true },
-  encryptedData: { type: String, required: true },
-  encryptionKey: { type: String, required: true },
+  encryptedData: { type: String, default: '' },
+  encryptionKey: { type: String, default: '' },
+  ipfsCid: { type: String, default: '' },
+  storageType: { type: String, default: 'local' },
   createdAt: { type: String, required: true }
 });
+
 
 const ContactSchema = new mongoose.Schema({
   id: { type: String, required: true, unique: true },
@@ -55,7 +58,8 @@ const BlockSchema = new mongoose.Schema({
   transactions: [mongoose.Schema.Types.Mixed],
   previousHash: { type: String, required: true },
   nonce: { type: Number, required: true },
-  hash: { type: String, required: true }
+  hash: { type: String, required: true },
+  polygonTxHash: { type: String, default: '' }
 });
 
 const LogSchema = new mongoose.Schema({
