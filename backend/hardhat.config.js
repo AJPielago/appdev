@@ -1,4 +1,5 @@
-import "dotenv/config";
+import dotenv from "dotenv";
+dotenv.config({ path: "../.env" });
 import "@nomicfoundation/hardhat-ethers";
 import hardhatEthers from "@nomicfoundation/hardhat-ethers";
 
