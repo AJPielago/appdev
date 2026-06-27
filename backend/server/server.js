@@ -24,8 +24,8 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '10mb' })); // Support base64 file uploads
 
-// Create uploads directory
-const UPLOADS_DIR = path.join(process.cwd(), 'server', 'uploads');
+// Create uploads directory (relative to this server.js file)
+const UPLOADS_DIR = path.join(path.dirname(new URL(import.meta.url).pathname), 'uploads');
 if (!fs.existsSync(UPLOADS_DIR)) {
   fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 }

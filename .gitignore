@@ -36,3 +36,6 @@ artifacts/
 
 # Server uploads
 server/uploads/
+
+# Agent
+.agent/
