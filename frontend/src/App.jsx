@@ -210,32 +210,50 @@ export default function App() {
 
   return (
     <div className="app-container">
-      {/* Mobile Top Header Bar */}
-      <div className="mobile-header no-print">
-        <div className="mobile-header-brand" onClick={() => { setActiveTab('dashboard'); setIsMobileMenuOpen(false); }}>
-          <Shield className="logo-icon" size={22} />
-          <span className="logo-text">DigitalWill</span>
-        </div>
-        <div className="mobile-header-actions">
-          <span className="mobile-role-indicator">{activeRole} Workspace</span>
+      {/* Top Header Bar */}
+      <header className="app-header no-print">
+        {/* Left: hamburger (mobile) + logo */}
+        <div className="header-left">
           <button className="mobile-menu-toggle" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
             {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
+          <div className="header-brand" onClick={() => { setActiveTab('dashboard'); setIsMobileMenuOpen(false); }}>
+            <Shield className="logo-icon" size={22} />
+            <span className="logo-text">DigitalWill</span>
+          </div>
         </div>
-      </div>
 
-      {/* Mobile Sidebar Backdrop Overlay */}
+        {/* Center: page title */}
+        <div className="header-title-area">
+          <h1>{getNavItems().find(n => n.id === activeTab)?.label || 'Overview'}</h1>
+        </div>
+
+        {/* Right: badge + chatbot + user */}
+        <div className="header-actions">
+          <span className="ledger-badge">Ledger verified: v1.0.0</span>
+          <ChatBot />
+          <div className="header-user">
+            <div className="user-avatar" style={{ width: 34, height: 34, fontSize: '0.8rem' }}>
+              {currentUser.name ? currentUser.name.split(' ').map(n => n[0]).join('') : 'U'}
+            </div>
+            <div className="user-details">
+              <div className="user-name" style={{ fontSize: '0.82rem' }}>{currentUser.name || 'User'}</div>
+              <div className="user-role-badge">{activeRole}</div>
+            </div>
+            <button className="logout-button" onClick={handleLogout} style={{ padding: '6px 12px', fontSize: '0.8rem' }}>
+              <LogOut size={13} /> Log Out
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Sidebar Backdrop Overlay */}
       {isMobileMenuOpen && (
         <div className="sidebar-backdrop" onClick={() => setIsMobileMenuOpen(false)}></div>
       )}
 
       {/* Sidebar Navigation */}
       <nav className={`sidebar no-print ${isMobileMenuOpen ? 'open' : ''}`}>
-        <div className="logo-container">
-          <Shield className="logo-icon" size={26} />
-          <span className="logo-text">DigitalWill</span>
-        </div>
-
         <ul className="nav-links">
           {getNavItems().map(item => (
             <li key={item.id} className="nav-item">
@@ -253,96 +271,25 @@ export default function App() {
           ))}
         </ul>
 
-        {/* User profile details at sidebar bottom */}
-        <div className="user-profile-section">
-          <div className="user-info-card">
-            <div className="user-avatar">
-              {currentUser.name ? currentUser.name.split(' ').map(n => n[0]).join('') : 'U'}
-            </div>
-            <div className="user-details">
-              <div className="user-name">{currentUser.name || 'User'}</div>
-              <div className="user-role-badge">{activeRole} Workspace</div>
-            </div>
-          </div>
-
-          <button className="logout-button" onClick={handleLogout}>
-            <LogOut size={14} /> Log Out
-          </button>
-        </div>
-
-        {/* Inline Role Switcher for Mobile Devices */}
-        <div className="mobile-role-switcher-container">
+        {/* Inline Role Switcher */}
+        <div className="sidebar-role-switcher">
           <div className="role-switcher-title">Role Sandbox Switcher</div>
           <div className="role-buttons">
-            <button 
-              className={`role-btn ${activeRole === 'owner' ? 'active-owner' : ''}`}
-              onClick={() => handleRoleSwitch('owner')}
-            >
-              Owner
-            </button>
-            <button 
-              className={`role-btn ${activeRole === 'beneficiary' ? 'active-beneficiary' : ''}`}
-              onClick={() => handleRoleSwitch('beneficiary')}
-            >
-              Beneficiary
-            </button>
-            <button 
-              className={`role-btn ${activeRole === 'admin' ? 'active-admin' : ''}`}
-              onClick={() => handleRoleSwitch('admin')}
-            >
-              Admin
-            </button>
+            <button className={`role-btn ${activeRole === 'owner' ? 'active-owner' : ''}`} onClick={() => handleRoleSwitch('owner')}>Owner</button>
+            <button className={`role-btn ${activeRole === 'beneficiary' ? 'active-beneficiary' : ''}`} onClick={() => handleRoleSwitch('beneficiary')}>Beneficiary</button>
+            <button className={`role-btn ${activeRole === 'admin' ? 'active-admin' : ''}`} onClick={() => handleRoleSwitch('admin')}>Admin</button>
           </div>
         </div>
       </nav>
 
       {/* Main Workspace Area */}
       <main className="main-content">
-        {/* Header section */}
-        <header className="app-header no-print">
-          <div className="header-title-area">
-            <h1>{getNavItems().find(n => n.id === activeTab)?.label || 'Overview'}</h1>
-            <p>DigitalWill secure estate & trust audit network</p>
-          </div>
-          
-          <div className="header-actions">
-            <span style={{ fontSize: '0.8rem', padding: '4px 10px', borderRadius: '30px', backgroundColor: 'rgba(5, 217, 195, 0.06)', border: '1px solid rgba(5, 217, 195, 0.15)', color: 'var(--accent-emerald)', fontWeight: '600' }}>
-              Ledger verified: v1.0.0
-            </span>
-            <ChatBot />
-          </div>
-        </header>
-
-        {/* Active Page View Component */}
         <div style={{ flexGrow: 1, position: 'relative', zIndex: 1 }}>
           {renderTabContent()}
         </div>
       </main>
 
-      {/* Interactive Role Switcher Panel */}
-      <div className="role-switcher-widget no-print">
-        <div className="role-switcher-title">Role Sandbox Switcher</div>
-        <div className="role-buttons">
-          <button 
-            className={`role-btn ${activeRole === 'owner' ? 'active-owner' : ''}`}
-            onClick={() => handleRoleSwitch('owner')}
-          >
-            Asset Owner
-          </button>
-          <button 
-            className={`role-btn ${activeRole === 'beneficiary' ? 'active-beneficiary' : ''}`}
-            onClick={() => handleRoleSwitch('beneficiary')}
-          >
-            Beneficiary
-          </button>
-          <button 
-            className={`role-btn ${activeRole === 'admin' ? 'active-admin' : ''}`}
-            onClick={() => handleRoleSwitch('admin')}
-          >
-            SysAdmin
-          </button>
-        </div>
-      </div>
+      {/* Interactive Role Switcher Panel — now inside sidebar */}
 
       {/* Mining Spinner Overlay */}
       {isMining && (

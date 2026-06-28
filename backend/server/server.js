@@ -1189,20 +1189,27 @@ Keep answers concise and helpful. Do not answer questions unrelated to DigitalWi
       parts: [{ text: 'Understood! I will help users with DigitalWill in English or Filipino.' }]
     });
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: geminiMessages,
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 500
-        }
-      })
+    const geminiBody = JSON.stringify({
+      contents: geminiMessages,
+      generationConfig: { temperature: 0.7, maxOutputTokens: 500 }
     });
 
-    const data = await response.json();
-    
+    const models = ['gemini-2.5-flash', 'gemini-2.0-flash'];
+    let response, data;
+
+    for (const model of models) {
+      response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: geminiBody
+      });
+      data = await response.json();
+      if (response.ok) break;
+      // Only fallback on overload (503) or resource exhausted (429)
+      if (response.status !== 503 && response.status !== 429) break;
+      console.warn(`[GEMINI] ${model} overloaded (${response.status}), trying next model...`);
+    }
+
     if (!response.ok) {
       return res.status(response.status).json({ error: data.error?.message || 'Gemini API error' });
     }
