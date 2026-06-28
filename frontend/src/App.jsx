@@ -19,6 +19,7 @@ import TrustedContacts from './components/TrustedContacts';
 import BlockchainLedger from './components/BlockchainLedger';
 import AdminConsole from './components/AdminConsole';
 import ReportsManager from './components/ReportsManager';
+import ChatBot from './components/ChatBot';
 
 export default function App() {
   // Initialize LocalStorage database
@@ -308,6 +309,7 @@ export default function App() {
             <span style={{ fontSize: '0.8rem', padding: '4px 10px', borderRadius: '30px', backgroundColor: 'rgba(5, 217, 195, 0.06)', border: '1px solid rgba(5, 217, 195, 0.15)', color: 'var(--accent-emerald)', fontWeight: '600' }}>
               Ledger verified: v1.0.0
             </span>
+            <ChatBot />
           </div>
         </header>
 

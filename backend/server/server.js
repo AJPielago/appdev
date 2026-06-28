@@ -3,17 +3,23 @@ import express from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path, { join } from 'path';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import fs from 'fs';
-import path from 'path';
 import { ethers } from 'ethers';
 import { PinataSDK } from 'pinata';
 import { User, Asset, Document, Contact, Block, Log } from './models/Schemas.js';
 
-dotenv.config();
+let __dirname = path.dirname(decodeURIComponent(new URL(import.meta.url).pathname));
+if (process.platform === 'win32' && __dirname.startsWith('/')) {
+  __dirname = __dirname.slice(1);
+}
+
+// Load .env from project root (two levels up from server.js)
+dotenv.config({ path: join(__dirname, '../../.env') });
 
 // Sanitize PINATA_GATEWAY if it is the placeholder value
 if (process.env.PINATA_GATEWAY === 'your-gateway.mypinata.cloud') {
@@ -25,7 +31,7 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' })); // Support base64 file uploads
 
 // Create uploads directory (relative to this server.js file)
-const UPLOADS_DIR = path.join(path.dirname(new URL(import.meta.url).pathname), 'uploads');
+const UPLOADS_DIR = path.join(__dirname, 'uploads');
 if (!fs.existsSync(UPLOADS_DIR)) {
   fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 }
@@ -1150,6 +1156,68 @@ app.post('/api/p2p/broadcast-block', async (req, res) => {
   }
 });
 
+// --- AI Chatbot Endpoint (Google Gemini) ---
+app.post('/api/chat', async (req, res) => {
+  const { messages } = req.body;
+  const apiKey = process.env.GEMINI_API_KEY;
+
+  if (!apiKey || apiKey === 'your_gemini_api_key_here') {
+    return res.status(503).json({ error: 'AI chatbot is not configured. Please set GEMINI_API_KEY in your .env file.' });
+  }
+
+  try {
+    const systemPrompt = `You are a helpful assistant for DigitalWill, a blockchain-based digital estate management platform.
+You help users with questions about the platform in both English and Filipino (Tagalog).
+Always detect the language the user is writing in and respond in the same language.
+If the user mixes English and Filipino, respond in both.
+You can answer questions about: digital wills, asset management, beneficiary claims, the secure vault, blockchain ledger, encryption, user roles (owner, beneficiary, admin), trusted contacts, and estate planning.
+Keep answers concise and helpful. Do not answer questions unrelated to DigitalWill or estate/inheritance planning.`;
+
+    // Convert messages to Gemini format
+    const geminiMessages = messages.map(msg => ({
+      role: msg.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: msg.content }]
+    }));
+
+    // Add system prompt as first user message
+    geminiMessages.unshift({
+      role: 'user',
+      parts: [{ text: systemPrompt }]
+    });
+    geminiMessages.splice(1, 0, {
+      role: 'model',
+      parts: [{ text: 'Understood! I will help users with DigitalWill in English or Filipino.' }]
+    });
+
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: geminiMessages,
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 500
+        }
+      })
+    });
+
+    const data = await response.json();
+    
+    if (!response.ok) {
+      return res.status(response.status).json({ error: data.error?.message || 'Gemini API error' });
+    }
+
+    const reply = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!reply) {
+      return res.status(502).json({ error: 'No reply from Gemini AI' });
+    }
+
+    res.json({ reply });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Gemini integration error' });
+  }
+});
+
 // --- MongoDB Server Startup ---
 const PORT = process.env.PORT || 5000;
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/digitalwill';
@@ -1174,21 +1242,24 @@ function notifyServerUpdate(type, action) {
   io.emit('db_update', { type, action });
 }
 
-mongoose.connect(MONGO_URI)
-  .then(async () => {
+async function startServer() {
+  try {
+    await mongoose.connect(MONGO_URI);
     console.log('Successfully connected to MongoDB.');
-    
-    // Seed database if empty
+
     const blockCount = await Block.countDocuments();
     if (blockCount === 0) {
       console.log('Blockchain is empty. Seeding initial data...');
       await seedInitialData();
     }
-    
-    httpServer.listen(PORT, () => {
-      console.log(`Server Node is running on port ${PORT}`);
-    });
-  })
-  .catch(err => {
+  } catch (err) {
     console.error('Error connecting to MongoDB:', err);
+    console.warn('Continuing startup without MongoDB. Some features may be disabled.');
+  }
+
+  httpServer.listen(PORT, () => {
+    console.log(`Server Node is running on port ${PORT}`);
   });
+}
+
+startServer();
