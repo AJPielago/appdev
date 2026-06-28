@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { 
   Database, Users, ShieldAlert, Cpu, CheckCircle2, 
-  Activity, ShieldCheck, Clock, Globe, HardDrive
+  Activity, ShieldCheck, Clock, Globe, HardDrive, ArrowRight,
+  TrendingUp, FileText, Lock, Zap
 } from 'lucide-react';
 import { 
   getAssets, getContacts, getDocuments, getBlockchain, 
@@ -25,15 +26,12 @@ export default function DashboardOverview({ onNavigate }) {
     let active = true;
     async function loadData() {
       try {
-        const [assetsData, contactsData, documentsData, blockchainData, logsData, integrityData, ipfsData, polygonData] = await Promise.all([
-          getAssets(),
-          getContacts(),
-          getDocuments(),
-          getBlockchain(),
-          getLogs(),
-          verifyBlockchainIntegrity(),
-          getIPFSStatus(),
-          getPolygonStatus()
+        const [
+          assetsData, contactsData, documentsData, blockchainData,
+          logsData, integrityData, ipfsData, polygonData
+        ] = await Promise.all([
+          getAssets(), getContacts(), getDocuments(), getBlockchain(),
+          getLogs(), verifyBlockchainIntegrity(), getIPFSStatus(), getPolygonStatus()
         ]);
         if (active) {
           setAssets(assetsData);
@@ -58,14 +56,13 @@ export default function DashboardOverview({ onNavigate }) {
   if (isLoading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '300px' }}>
-        <div className="mining-spinner"></div>
+        <div className="mining-spinner" />
       </div>
     );
   }
 
-  // Compute estate safety rating
   const getSecurityScore = () => {
-    let score = 30; // base score for having an account
+    let score = 30;
     if (assets.length > 0) score += 20;
     if (contacts.length > 0) score += 20;
     if (documents.length > 0) score += 20;
@@ -74,109 +71,258 @@ export default function DashboardOverview({ onNavigate }) {
   };
 
   const score = getSecurityScore();
-  
-  // Highlight color based on score
+
   const getScoreColor = (val) => {
-    if (val >= 80) return 'var(--accent-emerald)';
+    if (val >= 80) return 'var(--accent-teal)';
     if (val >= 50) return 'var(--accent-amber)';
     return 'var(--accent-rose)';
   };
 
+  const scoreColor = getScoreColor(score);
+  const scoreLabel = score >= 80 ? 'Safe & Compliant' : score >= 50 ? 'Partially Secured' : 'Incomplete Vault';
+  const circum = 2 * Math.PI * 52;
+
   return (
     <div>
-      {/* Metrics Row */}
+      {/* ── Hero Banner ─────────────────────────── */}
+      <div className="dashboard-hero-section">
+        <div className="glass-card dashboard-hero-card">
+          <div className="hero-content">
+            <div className="hero-text">
+              <span className="hero-eyebrow">
+                <Zap size={10} />
+                Blockchain-Secured Estate
+              </span>
+              <h1 className="hero-title">
+                Your Digital Legacy,<br />Protected On-Chain
+              </h1>
+              <p className="hero-subtitle">
+                Cryptographically seal your digital assets and documents.
+                Transfer your estate with immutable, tamper-proof certainty.
+              </p>
+              <div className="hero-stats">
+                <div className="hero-stat">
+                  <span className="stat-number">{assets.length}</span>
+                  <span className="stat-label">Assets Secured</span>
+                </div>
+                <div className="hero-stat">
+                  <span className="stat-number">{contacts.length}</span>
+                  <span className="stat-label">Beneficiaries</span>
+                </div>
+                <div className="hero-stat">
+                  <span className="stat-number" style={{ color: scoreColor }}>{score}%</span>
+                  <span className="stat-label">Security Score</span>
+                </div>
+              </div>
+            </div>
+            <div className="hero-image">
+              <img src="/dashboard-hero.svg" alt="Digital Will Dashboard" className="hero-img" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Feature Cards ───────────────────────── */}
+      <div className="feature-cards-grid">
+        <div className="glass-card feature-card" onClick={() => onNavigate('assets')}>
+          <div className="feature-image">
+            <img src="/digital-assets.svg" alt="Digital Assets" />
+          </div>
+          <div className="feature-content">
+            <h3 className="feature-title">
+              <Database size={18} style={{ color: 'var(--accent-teal)' }} />
+              Digital Assets
+            </h3>
+            <p className="feature-description">
+              Catalog cryptocurrencies, accounts, and digital properties in one encrypted inventory.
+            </p>
+            <div className="feature-stats">
+              <span className="feature-stat">
+                <TrendingUp size={13} />
+                {assets.length} items cataloged
+              </span>
+            </div>
+            <div className="feature-action">
+              <span>Manage Assets</span>
+              <ArrowRight size={15} />
+            </div>
+          </div>
+        </div>
+
+        <div className="glass-card feature-card" onClick={() => onNavigate('vault')}>
+          <div className="feature-image">
+            <img src="/secure-vault.svg" alt="Secure Vault" />
+          </div>
+          <div className="feature-content">
+            <h3 className="feature-title">
+              <Lock size={18} style={{ color: 'var(--accent-indigo)' }} />
+              Secure Vault
+            </h3>
+            <p className="feature-description">
+              Store legal documents and files under AES-256 military-grade encryption.
+            </p>
+            <div className="feature-stats">
+              <span className="feature-stat">
+                <FileText size={13} />
+                {documents.length} files protected
+              </span>
+            </div>
+            <div className="feature-action">
+              <span>Access Vault</span>
+              <ArrowRight size={15} />
+            </div>
+          </div>
+        </div>
+
+        <div className="glass-card feature-card" onClick={() => onNavigate('ledger')}>
+          <div className="feature-image">
+            <img src="/blockchain-ledger.svg" alt="Blockchain Ledger" />
+          </div>
+          <div className="feature-content">
+            <h3 className="feature-title">
+              <Cpu size={18} style={{ color: 'var(--accent-amber)' }} />
+              Blockchain Ledger
+            </h3>
+            <p className="feature-description">
+              Immutable audit trail with cryptographic proof — every change recorded on-chain.
+            </p>
+            <div className="feature-stats">
+              <span className="feature-stat">
+                <CheckCircle2 size={13} />
+                Block #{blockchain.length - 1} verified
+              </span>
+            </div>
+            <div className="feature-action">
+              <span>Inspect Ledger</span>
+              <ArrowRight size={15} />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Primary Metrics ─────────────────────── */}
       <div className="metrics-grid">
         <div className="glass-card metric-card">
           <div className="metric-header">
-            <span>Secured Digital Assets</span>
-            <Database size={18} className="text-cyan" />
+            <span>Secured Assets</span>
+            <Database size={16} style={{ color: 'var(--accent-teal)' }} />
           </div>
-          <div className="metric-value text-cyan">{assets.length}</div>
-          <div className="metric-footer text-muted">
-            <span>Categorized in digital inventory</span>
+          <div className="metric-value text-teal">{assets.length}</div>
+          <div className="metric-footer">
+            <span>Cataloged in digital inventory</span>
           </div>
         </div>
 
         {role === 'owner' ? (
           <div className="glass-card metric-card">
             <div className="metric-header">
-              <span>Trusted Contacts</span>
-              <Users size={18} className="text-emerald" />
+              <span>Beneficiaries</span>
+              <Users size={16} style={{ color: 'var(--accent-indigo)' }} />
             </div>
-            <div className="metric-value text-emerald">{contacts.length}</div>
-            <div className="metric-footer text-muted">
-              <span>Beneficiaries with claim codes</span>
+            <div className="metric-value" style={{ background: 'var(--grad-brand)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+              {contacts.length}
+            </div>
+            <div className="metric-footer">
+              <span>Trusted contacts assigned</span>
             </div>
           </div>
         ) : (
           <div className="glass-card metric-card">
             <div className="metric-header">
-              <span>Secure Documents</span>
-              <ShieldCheck size={18} className="text-emerald" />
+              <span>Encrypted Documents</span>
+              <ShieldCheck size={16} style={{ color: 'var(--accent-indigo)' }} />
             </div>
-            <div className="metric-value text-emerald">{documents.length}</div>
-            <div className="metric-footer text-muted">
-              <span>Uploaded under AES-256</span>
+            <div className="metric-value" style={{ background: 'var(--grad-brand)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+              {documents.length}
+            </div>
+            <div className="metric-footer">
+              <span>Files under AES-256</span>
             </div>
           </div>
         )}
 
         <div className="glass-card metric-card">
           <div className="metric-header">
-            <span>Blockchain Blocks</span>
-            <Cpu size={18} className="text-cyan" />
+            <span>Chain Height</span>
+            <Cpu size={16} style={{ color: 'var(--accent-teal)' }} />
           </div>
-          <div className="metric-value" style={{ textShadow: '0 0 10px rgba(0, 242, 254, 0.3)' }}>
+          <div className="metric-value text-teal">
             #{blockchain.length - 1}
           </div>
-          <div className="metric-footer text-muted">
-            <span className="text-emerald">● Ledger Immutable</span>
+          <div className="metric-footer">
+            <span style={{ color: 'var(--accent-teal)' }}>● Ledger immutable</span>
           </div>
         </div>
 
         <div className="glass-card metric-card">
           <div className="metric-header">
-            <span>Ledger Integrity</span>
-            {integrity.valid ? (
-              <CheckCircle2 size={18} className="text-emerald" />
-            ) : (
-              <ShieldAlert size={18} className="text-rose" />
-            )}
+            <span>Integrity Status</span>
+            {integrity.valid
+              ? <CheckCircle2 size={16} style={{ color: 'var(--accent-teal)' }} />
+              : <ShieldAlert size={16} style={{ color: 'var(--accent-rose)' }} />
+            }
           </div>
-          <div className="metric-value" style={{ color: integrity.valid ? 'var(--accent-emerald)' : 'var(--accent-rose)' }}>
+          <div className="metric-value" style={{
+            color: integrity.valid ? 'var(--accent-teal)' : 'var(--accent-rose)',
+            WebkitTextFillColor: integrity.valid ? 'var(--accent-teal)' : 'var(--accent-rose)',
+            fontSize: '1.4rem',
+            letterSpacing: '0.5px',
+          }}>
             {integrity.valid ? 'VERIFIED' : 'TAMPERED'}
           </div>
-          <div className="metric-footer text-muted">
-            <span>Cryptographic hash valid</span>
+          <div className="metric-footer">
+            <span>Hash chain valid</span>
           </div>
         </div>
       </div>
 
-      {/* IPFS & Polygon Status Row */}
-      <div className="metrics-grid" style={{ marginTop: '0' }}>
+      {/* ── Infrastructure Status ───────────────── */}
+      <div className="metrics-grid" style={{ marginTop: 0 }}>
         <div className="glass-card metric-card">
           <div className="metric-header">
             <span>IPFS Storage</span>
-            <Globe size={18} style={{ color: ipfsStatus.enabled ? 'var(--accent-emerald)' : 'var(--text-muted)' }} />
+            <Globe size={16} style={{ color: ipfsStatus.enabled ? 'var(--accent-teal)' : 'var(--text-faint)' }} />
           </div>
-          <div className="metric-value" style={{ color: ipfsStatus.enabled ? 'var(--accent-emerald)' : 'var(--text-muted)', fontSize: '1.2rem' }}>
-            {ipfsStatus.enabled ? 'CONNECTED' : 'OFFLINE'}
+          <div className="metric-value" style={{
+            color: ipfsStatus.enabled ? 'var(--accent-teal)' : 'var(--text-muted)',
+            WebkitTextFillColor: ipfsStatus.enabled ? 'var(--accent-teal)' : 'var(--text-muted)',
+            fontSize: '1.1rem',
+            letterSpacing: '1px',
+            fontFamily: 'var(--font-mono)',
+            fontWeight: 600,
+            marginTop: 10,
+          }}>
+            {ipfsStatus.enabled ? '● CONNECTED' : '○ OFFLINE'}
           </div>
-          <div className="metric-footer text-muted">
-            <span>{ipfsStatus.enabled ? `Pinata → ${ipfsStatus.gateway}` : 'Configure Pinata JWT'}</span>
+          <div className="metric-footer">
+            {ipfsStatus.enabled
+              ? `Pinata → ${ipfsStatus.gateway}`
+              : 'Configure Pinata JWT to enable'
+            }
           </div>
         </div>
 
         <div className="glass-card metric-card">
           <div className="metric-header">
             <span>Polygon Amoy</span>
-            <HardDrive size={18} style={{ color: polygonStatus.enabled ? '#8a2be2' : 'var(--text-muted)' }} />
+            <HardDrive size={16} style={{ color: polygonStatus.enabled ? 'var(--accent-violet)' : 'var(--text-faint)' }} />
           </div>
-          <div className="metric-value" style={{ color: polygonStatus.enabled ? '#8a2be2' : 'var(--text-muted)', fontSize: '1.2rem' }}>
-            {polygonStatus.enabled ? 'ON-CHAIN' : 'OFFLINE'}
+          <div className="metric-value" style={{
+            color: polygonStatus.enabled ? 'var(--accent-violet)' : 'var(--text-muted)',
+            WebkitTextFillColor: polygonStatus.enabled ? 'var(--accent-violet)' : 'var(--text-muted)',
+            fontSize: '1.1rem',
+            letterSpacing: '1px',
+            fontFamily: 'var(--font-mono)',
+            fontWeight: 600,
+            marginTop: 10,
+          }}>
+            {polygonStatus.enabled ? '● ON-CHAIN' : '○ OFFLINE'}
           </div>
-          <div className="metric-footer text-muted">
-            <span>{polygonStatus.enabled ? `${polygonStatus.auditEventsOnChain ?? 0} audit events anchored` : 'Deploy contract first'}</span>
+          <div className="metric-footer">
+            {polygonStatus.enabled
+              ? `${polygonStatus.auditEventsOnChain ?? 0} audit events anchored`
+              : 'Deploy contract to activate'
+            }
           </div>
         </div>
 
@@ -184,133 +330,147 @@ export default function DashboardOverview({ onNavigate }) {
           <div className="glass-card metric-card">
             <div className="metric-header">
               <span>Wallet Balance</span>
-              <HardDrive size={18} style={{ color: '#8a2be2' }} />
+              <HardDrive size={16} style={{ color: 'var(--accent-violet)' }} />
             </div>
-            <div className="metric-value" style={{ color: '#8a2be2', fontSize: '1.2rem' }}>
+            <div className="metric-value" style={{
+              color: 'var(--accent-violet)',
+              WebkitTextFillColor: 'var(--accent-violet)',
+            }}>
               {parseFloat(polygonStatus.balance).toFixed(4)}
             </div>
-            <div className="metric-footer text-muted">
-              <span>POL (Amoy Testnet)</span>
-            </div>
+            <div className="metric-footer">POL · Amoy Testnet</div>
           </div>
         )}
       </div>
 
-      {/* Main Grid */}
+      {/* ── Main Grid: Activity + Security ─────── */}
       <div className="dashboard-sections">
-        {/* Left Side: Recent Activity Audit */}
+        {/* Left: Activity Feed */}
         <div className="glass-card">
           <div className="card-header">
             <h2 className="card-title">
-              <Activity size={20} className="text-cyan" />
-              Real-time Ledger Log Feed
+              <Activity size={18} style={{ color: 'var(--accent-teal)' }} />
+              Live Ledger Feed
             </h2>
-            <button 
-              className="btn btn-secondary" 
-              style={{ fontSize: '0.8rem', padding: '6px 12px' }}
+            <button
+              className="btn btn-secondary"
+              style={{ fontSize: '0.78rem', padding: '6px 12px' }}
               onClick={() => onNavigate(role === 'admin' ? 'audit' : 'ledger')}
             >
-              Inspect Block Ledger
+              Inspect Blocks
             </button>
           </div>
+
           <div className="recent-activity-list">
             {logs.map((log) => (
               <div key={log.id} className="activity-item">
                 <div className="activity-icon-container">
-                  <Clock size={16} className="text-muted" />
+                  <Clock size={14} style={{ color: 'var(--text-muted)' }} />
                 </div>
                 <div className="activity-content">
-                  <div className="activity-title" style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <div className="activity-title">
                     <span>{log.action}</span>
-                    <span style={{ fontSize: '0.75rem', padding: '2px 6px', borderRadius: '4px', backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid var(--border-color)', color: 'var(--text-muted)' }}>
-                      {log.type.toUpperCase()}
-                    </span>
+                    <span className="activity-type-tag">{log.type.toUpperCase()}</span>
                   </div>
                   <p className="activity-desc">{log.details}</p>
                   <p className="activity-time">
-                    By {log.userEmail} • {new Date(log.timestamp).toLocaleString()}
+                    {log.userEmail} · {new Date(log.timestamp).toLocaleString()}
                   </p>
                 </div>
               </div>
             ))}
             {logs.length === 0 && (
-              <p className="text-muted" style={{ textAlign: 'center', padding: '20px' }}>
+              <p className="text-muted" style={{ textAlign: 'center', padding: '32px 20px', fontSize: '0.85rem' }}>
                 No events recorded in this session.
               </p>
             )}
           </div>
         </div>
 
-        {/* Right Side: Security Health Index */}
+        {/* Right: Security Health */}
         <div className="glass-card security-health-card">
-          <h2 className="card-title" style={{ width: '100%', textAlign: 'left', display: 'flex', gap: '8px' }}>
-            <ShieldCheck size={20} className="text-cyan" />
-            Will Security Index
+          <h2 className="card-title" style={{ width: '100%', textAlign: 'left' }}>
+            <ShieldCheck size={18} style={{ color: 'var(--accent-teal)' }} />
+            Security Index
           </h2>
-          
+
+          {/* SVG gauge */}
           <div className="health-gauge-container">
-            {/* SVG circle meter */}
-            <svg style={{ position: 'absolute', width: '130px', height: '130px', transform: 'rotate(-90deg)' }}>
-              <circle 
-                cx="65" cy="65" r="55" 
-                stroke="rgba(255,255,255,0.02)" 
-                strokeWidth="10" 
-                fill="none" 
+            <svg
+              width="130" height="130"
+              viewBox="0 0 130 130"
+              style={{ position: 'absolute' }}
+            >
+              {/* Track */}
+              <circle
+                cx="65" cy="65" r="52"
+                stroke="rgba(255,255,255,0.04)"
+                strokeWidth="8"
+                fill="none"
+                transform="rotate(-90 65 65)"
               />
-              <circle 
-                cx="65" cy="65" r="55" 
-                stroke={getScoreColor(score)}
-                strokeWidth="10" 
-                strokeDasharray={2 * Math.PI * 55}
-                strokeDashoffset={2 * Math.PI * 55 * (1 - score / 100)}
+              {/* Progress */}
+              <circle
+                cx="65" cy="65" r="52"
+                stroke={scoreColor}
+                strokeWidth="8"
+                strokeDasharray={circum}
+                strokeDashoffset={circum * (1 - score / 100)}
                 strokeLinecap="round"
-                fill="none" 
-                style={{ transition: 'stroke-dashoffset 1s ease-out' }}
+                fill="none"
+                transform="rotate(-90 65 65)"
+                style={{
+                  filter: `drop-shadow(0 0 6px ${scoreColor})`,
+                  transition: 'stroke-dashoffset 1.2s cubic-bezier(0.4,0,0.2,1)',
+                }}
               />
             </svg>
-            <div className="health-score-value" style={{ color: getScoreColor(score) }}>{score}%</div>
+            <div className="health-score-value" style={{ color: scoreColor }}>
+              {score}%
+            </div>
           </div>
 
-          <div style={{ textAlign: 'center', marginTop: '10px' }}>
-            <h3 style={{ fontSize: '1.1rem', fontWeight: '700' }}>
-              {score >= 80 ? 'Safe & Compliant' : score >= 50 ? 'Partially Secured' : 'Incomplete Vault'}
+          <div style={{ textAlign: 'center', marginTop: 4 }}>
+            <h3 style={{
+              fontFamily: 'var(--font-display)',
+              fontSize: '1rem',
+              fontWeight: 700,
+              color: scoreColor,
+            }}>
+              {scoreLabel}
             </h3>
-            <p className="text-muted" style={{ fontSize: '0.8rem', marginTop: '6px', maxWidth: '200px', marginInline: 'auto' }}>
-              {score >= 80 
-                ? 'Your digital estate has active beneficiaries, logged assets, and a verified secure backup.' 
-                : 'Complete key settings to raise your estate safety rating.'}
+            <p className="text-muted" style={{
+              fontSize: '0.8rem',
+              marginTop: 6,
+              maxWidth: 200,
+              marginInline: 'auto',
+              lineHeight: 1.5,
+            }}>
+              {score >= 80
+                ? 'Your estate has active beneficiaries, logged assets, and a verified backup.'
+                : 'Complete the setup checklist to strengthen your estate rating.'}
             </p>
           </div>
 
-          <div style={{ width: '100%', marginTop: '24px', textAlign: 'left', borderTop: '1px solid var(--border-color)', paddingTop: '16px' }}>
-            <h4 style={{ fontSize: '0.8rem', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '10px', letterSpacing: '0.5px' }}>
-              Estate Setup Checklist:
-            </h4>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.8rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ color: assets.length > 0 ? 'var(--accent-emerald)' : 'var(--text-muted)' }}>
-                  {assets.length > 0 ? '✓' : '○'}
-                </span>
-                <span className={assets.length > 0 ? '' : 'text-muted'}>Declare at least 1 digital asset</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ color: contacts.length > 0 ? 'var(--accent-emerald)' : 'var(--text-muted)' }}>
-                  {contacts.length > 0 ? '✓' : '○'}
-                </span>
-                <span className={contacts.length > 0 ? '' : 'text-muted'}>Assign a trusted contact</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ color: documents.length > 0 ? 'var(--accent-emerald)' : 'var(--text-muted)' }}>
-                  {documents.length > 0 ? '✓' : '○'}
-                </span>
-                <span className={documents.length > 0 ? '' : 'text-muted'}>Store legal will document</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ color: integrity.valid ? 'var(--accent-emerald)' : 'var(--text-muted)' }}>
-                  {integrity.valid ? '✓' : '○'}
-                </span>
-                <span className={integrity.valid ? '' : 'text-muted'}>Verify blockchain ledger health</span>
-              </div>
+          {/* Checklist */}
+          <div className="estate-checklist">
+            <p className="checklist-label">Setup checklist</p>
+            <div className="checklist-items">
+              {[
+                { done: assets.length > 0,    label: 'Declare at least 1 digital asset' },
+                { done: contacts.length > 0,  label: 'Assign a trusted beneficiary' },
+                { done: documents.length > 0, label: 'Upload a legal will document' },
+                { done: integrity.valid,       label: 'Blockchain ledger verified' },
+              ].map(({ done, label }) => (
+                <div className="checklist-row" key={label}>
+                  <span className="checklist-icon" style={{ color: done ? 'var(--accent-teal)' : 'var(--text-faint)' }}>
+                    {done ? '✓' : '○'}
+                  </span>
+                  <span style={{ color: done ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                    {label}
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
         </div>

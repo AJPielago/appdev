@@ -29,6 +29,7 @@ export default function App() {
   const [activeRole, setActiveRoleState] = useState(getActiveRole());
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isClaimApproved, setIsClaimApproved] = useState(false);
   
   // Mining Animation State
@@ -212,8 +213,11 @@ export default function App() {
     <div className="app-container">
       {/* Top Header Bar */}
       <header className="app-header no-print">
-        {/* Left: hamburger (mobile) + logo */}
+        {/* Left: sidebar toggle + hamburger (mobile) + logo */}
         <div className="header-left">
+          <button className="sidebar-toggle-btn" onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
+            <Menu size={18} />
+          </button>
           <button className="mobile-menu-toggle" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
             {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
@@ -253,7 +257,7 @@ export default function App() {
       )}
 
       {/* Sidebar Navigation */}
-      <nav className={`sidebar no-print ${isMobileMenuOpen ? 'open' : ''}`}>
+      <nav className={`sidebar no-print ${isMobileMenuOpen ? 'mobile-open' : ''} ${isSidebarOpen ? 'open' : 'closed'}`}>
         <ul className="nav-links">
           {getNavItems().map(item => (
             <li key={item.id} className="nav-item">
@@ -283,7 +287,7 @@ export default function App() {
       </nav>
 
       {/* Main Workspace Area */}
-      <main className="main-content">
+      <main className={`main-content ${isSidebarOpen ? 'sidebar-open' : 'sidebar-closed'}`}>
         <div style={{ flexGrow: 1, position: 'relative', zIndex: 1 }}>
           {renderTabContent()}
         </div>
